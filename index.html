@@ -14,7 +14,7 @@
   #app,.tabs,header{display:none!important;}
   #print-area{display:block!important;}
   @page{margin:0;size:A4;}
-  .pdf-page{page-break-after:always;box-shadow:none;}
+  .pdf-page{page-break-after:avoid;box-shadow:none;}
   .pdf-table{page-break-inside:auto;}
   .pdf-table thead{display:table-header-group;}
   .pdf-table tbody tr{page-break-inside:avoid;}
@@ -452,11 +452,14 @@ table.cross-table tfoot td{font-weight:700;border-top:2px solid var(--g200);}
 
     <div class="card">
       <div class="card-title">Formas de Pagamento Disponíveis</div>
-      <p style="font-size:13px;color:var(--g400);margin-bottom:10px">Selecione as que estarão disponíveis neste orçamento:</p>
-      <div class="chips">
-        <div class="chip on" id="chip1" onclick="toggleChip('chip1')"><input type="checkbox" checked value="À vista — Crédito ou PIX"> 💳 À vista — Crédito ou PIX</div>
-        <div class="chip" id="chip2" onclick="toggleChip('chip2')"><input type="checkbox" value="Parcelado em até 10x com juros do cartão"> 🔢 Parcelado em até 10x com juros</div>
-        <div class="chip" id="chip3" onclick="toggleChip('chip3')"><input type="checkbox" value="50% na reserva + 50% na entrega"> ✂️ 50% na reserva + 50% na entrega</div>
+      <p style="font-size:13px;color:var(--g400);margin-bottom:10px">Selecione as disponíveis neste orçamento. Você também pode adicionar uma forma personalizada:</p>
+      <div class="chips" id="pgto-chips-container"></div>
+      <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+        <input type="text" id="pgto-custom-input" placeholder="Ex: 3x sem juros no cartão..." 
+          style="flex:1;font-size:13px;padding:7px 11px"
+          onkeydown="if(event.key==='Enter') adicionarPgtoCustom()">
+        <button class="btn-r gray" style="max-width:120px;min-width:0;font-size:13px;padding:8px 12px" 
+          onclick="adicionarPgtoCustom()">＋ Adicionar</button>
       </div>
     </div>
 
@@ -1387,6 +1390,65 @@ function toggleChip(id){
   c.querySelector('input').checked=c.classList.contains('on');
 }
 
+// ── FORMAS DE PAGAMENTO DINÂMICAS ──
+const PGTO_DEFAULT=[
+  {val:'À vista — Crédito ou PIX',      icon:'💳', on:true},
+  {val:'Parcelado em até 10x com juros', icon:'🔢', on:false},
+  {val:'50% na reserva + 50% na entrega',icon:'✂️', on:false},
+];
+const K_PGTOS='kibon_pgtos';
+
+function getPgtos(){
+  return sg(K_PGTOS)||PGTO_DEFAULT.map(p=>({...p}));
+}
+
+function renderPgtoChips(){
+  const pgtos=getPgtos();
+  const container=document.getElementById('pgto-chips-container');
+  if(!container) return;
+  container.innerHTML=pgtos.map((p,i)=>`
+    <div class="chip${p.on?' on':''}" id="pgto-chip-${i}" onclick="togglePgtoChip(${i})">
+      <input type="checkbox"${p.on?' checked':''} value="${p.val}">
+      ${p.icon||'💳'} ${p.val}
+      ${i>=PGTO_DEFAULT.length?`<span onclick="removePgto(${i},event)" style="margin-left:4px;opacity:.6;font-size:12px">✕</span>`:''}
+    </div>`).join('');
+}
+
+function togglePgtoChip(i){
+  const pgtos=getPgtos();
+  pgtos[i].on=!pgtos[i].on;
+  ss(K_PGTOS,pgtos);
+  renderPgtoChips();
+}
+
+function adicionarPgtoCustom(){
+  const input=document.getElementById('pgto-custom-input');
+  const val=(input.value||'').trim();
+  if(!val){toast('⚠️ Informe a forma de pagamento','err');return;}
+  const pgtos=getPgtos();
+  if(pgtos.find(p=>p.val.toLowerCase()===val.toLowerCase())){
+    toast('⚠️ Essa forma já existe','err');return;
+  }
+  pgtos.push({val,icon:'💰',on:true});
+  ss(K_PGTOS,pgtos);
+  input.value='';
+  renderPgtoChips();
+  toast('✅ Forma de pagamento adicionada!');
+}
+
+function removePgto(i,event){
+  event.stopPropagation();
+  const pgtos=getPgtos();
+  if(i<PGTO_DEFAULT.length) return; // don't remove defaults
+  pgtos.splice(i,1);
+  ss(K_PGTOS,pgtos);
+  renderPgtoChips();
+}
+
+function getPgtosSelected(){
+  return getPgtos().filter(p=>p.on).map(p=>p.val);
+}
+
 // ── DADOS ──
 function coletar(){
   const itens=[];
@@ -1401,7 +1463,7 @@ function coletar(){
   const sub=itens.reduce((s,i)=>s+i.total,0);
   const frete=parseFloat(document.getElementById('frete').value)||0;
   const desc=parseFloat(document.getElementById('desc').value)||0;
-  const pgtos=[...document.querySelectorAll('.chip.on input')].map(i=>i.value);
+  const pgtos=getPgtosSelected();
   return{
     num:document.getElementById('num').value,
     dataEmissao:document.getElementById('demissao').value,
@@ -1418,6 +1480,21 @@ function coletar(){
 }
 
 // ── SALVAR ──
+function apagarOrc(num, event){
+  event.stopPropagation(); // prevent row click
+  if(!confirm(`Apagar orçamento ${num}? O número ficará disponível novamente.`)) return;
+  const orcs=getOrcs();
+  const idx=orcs.findIndex(o=>o.num===num||o.num==='#'+num.replace('#',''));
+  if(idx<0){toast('⚠️ Orçamento não encontrado','err');return;}
+  orcs.splice(idx,1);
+  ss(K_ORCS,orcs);
+  // The number becomes available again — but we don't force it back
+  // since there may be higher numbers already. Just free it conceptually.
+  toast(`🗑 Orçamento ${num} apagado`);
+  renderLista(getOrcs());
+  renderDash(getOrcs());
+}
+
 function salvar(){
   const d=coletar();
   if(d.itens.length===0){toast('⚠️ Adicione pelo menos um sabor');return;}
@@ -1449,13 +1526,11 @@ function novoForm(){
   document.getElementById('desc').value='';
   document.getElementById('ilist').innerHTML='';
   icount=0;
-  // reset chips
-  ['chip1','chip2','chip3'].forEach((id,i)=>{
-    const c=document.getElementById(id);
-    const on=i===0;
-    c.classList.toggle('on',on);
-    c.querySelector('input').checked=on;
-  });
+  // reset pgto chips to defaults
+  const pgtos=getPgtos();
+  pgtos.forEach((p,i)=>{p.on=i===0;});
+  ss(K_PGTOS,pgtos);
+  renderPgtoChips();
   addItem();addItem();addItem();
   renderComboBtns();
 }
@@ -1571,21 +1646,24 @@ function salvarPDF(){
   if(d.itens.length===0){toast('⚠️ Adicione pelo menos um sabor');return;}
   if(d.itens.length>0) persistir(d);
 
-  // Build filename
-  const nomeCliente=(d.cliente||'cliente').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9 ]/g,'').trim().replace(/\s+/g,'_');
+  // Build filename — pattern: Orcamento_1217_Nome_Cliente.pdf
+  const nomeCliente=(d.cliente||'cliente')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')  // remove accents
+    .replace(/[^a-zA-Z0-9 ]/g,'').trim()               // remove special chars
+    .replace(/\s+/g,'_');                               // spaces to underscores
   const numLimpo=(d.num||'').replace('#','');
   const filename=`Orcamento_${numLimpo}_${nomeCliente}.pdf`;
 
-  // Inject HTML
+  // Inject PDF HTML
   document.getElementById('print-area').innerHTML=buildPDFHTML(d);
 
-  // Use print dialog — browser handles PDF save with filename via title
+  // Set document title — browser uses this as suggested filename when saving PDF
   const prevTitle=document.title;
   document.title=filename;
   setTimeout(()=>{
     window.print();
-    setTimeout(()=>{document.title=prevTitle;},1000);
-  },150);
+    setTimeout(()=>{ document.title=prevTitle; },2000);
+  },200);
 }
 
 // ── HISTÓRICO ──
@@ -1609,6 +1687,7 @@ function renderLista(orcs){
       <div class="orc-actions">
         <button class="orc-btn" onclick="carregarOrc('${o.num}')">✏️ Editar</button>
         <button class="orc-btn" onclick="duplicarOrc('${o.num}')">📋 Duplicar</button>
+        <button class="orc-btn" style="color:var(--red)" onclick="apagarOrc('${o.num}',event)">🗑</button>
       </div>
     </div>`).join('');
 }
@@ -1713,12 +1792,15 @@ function preencherForm(o,isDup){
   document.getElementById('convid').value=o.convid||'';
   document.getElementById('frete').value=o.frete||'';
   document.getElementById('desc').value=o.desc||'';
-  document.querySelectorAll('.chip').forEach(chip=>{
-    const val=chip.querySelector('input').value;
-    const on=o.pgtos&&o.pgtos.includes(val);
-    chip.classList.toggle('on',on);
-    chip.querySelector('input').checked=on;
+  // Restore pgto selections using new dynamic system
+  const pgtos=getPgtos();
+  pgtos.forEach((p,i)=>{p.on=o.pgtos&&o.pgtos.includes(p.val);});
+  // Add any custom pgtos from saved orçamento that aren't in current list
+  (o.pgtos||[]).forEach(val=>{
+    if(!pgtos.find(p=>p.val===val)) pgtos.push({val,icon:'💰',on:true});
   });
+  ss(K_PGTOS,pgtos);
+  renderPgtoChips();
   document.getElementById('ilist').innerHTML='';
   icount=0;
   (o.itens||[]).forEach(i=>addItem(i.nome,i.qty,i.preco));
@@ -3451,6 +3533,7 @@ async function init(){
   if(!sg(K_NUM)) ss(K_NUM, 1217);
   novoForm();
   renderComboBtns();
+  renderPgtoChips();
 }
 init();
 </script>
