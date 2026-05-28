@@ -578,6 +578,7 @@ table.cross-table tfoot td{font-weight:700;border-top:2px solid var(--g200);}
             <th>Pagamento</th>
             <th>Origem</th>
             <th>Status</th>
+            <th></th>
           </tr></thead>
           <tbody id="ev-tbody"></tbody>
         </table>
@@ -1092,6 +1093,18 @@ table.cross-table tfoot td{font-weight:700;border-top:2px solid var(--g200);}
       <b>Status atual:</b>
       <span id="config-current-url" style="font-family:monospace;color:var(--g600)">Não configurado</span><br>
       <b>Último sync:</b> <span id="config-last-sync">—</span>
+    </div>
+
+    <div style="border-top:1px solid var(--g100);padding-top:14px;margin-bottom:14px">
+      <p style="font-size:12px;color:var(--g400);margin-bottom:10px">Numeração dos eventos — defina o próximo número para evitar conflito com eventos já existentes:</p>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div class="field" style="flex:1;min-width:120px">
+          <label>Próximo Nº Evento 2026</label>
+          <input type="number" id="config-next-ev" min="1" placeholder="Ex: 61" style="font-size:15px;font-weight:700">
+        </div>
+        <button class="btn-r gray" style="max-width:140px;min-width:0;font-size:13px;margin-bottom:0" onclick="salvarNextEvNum()">💾 Salvar Numeração</button>
+      </div>
+      <p style="font-size:11px;color:var(--g400);margin-top:6px" id="config-ev-num-info"></p>
     </div>
 
     <div class="modal-actions" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
@@ -2234,6 +2247,7 @@ function renderEventosTabela(){
       <td style="font-size:11px">${e.formaPgto||'—'}</td>
       <td style="font-size:11px">${e.origem||'—'}</td>
       <td><span class="ev-status ${e.status||'confirmado'}">${statusLabel[e.status]||e.status}</span></td>
+      <td onclick="event.stopPropagation()"><button class="orc-btn" style="color:var(--red);font-size:11px" onclick="apagarEvento('${e.id}')">🗑</button></td>
     </tr>`).join('');
 }
 
@@ -2251,6 +2265,26 @@ function voltarLista(){
   document.getElementById('ev-detalhe-view').style.display='none';
   renderEventosDash();
   renderEventosTabela();
+}
+
+function apagarEvento(id){
+  const evts=getEvts();
+  const e=evts.find(x=>x.id===id);
+  if(!e){toast('⚠️ Evento não encontrado','err');return;}
+  if(!confirm(`Apagar o evento ${id} — ${e.cliente||''}?
+
+Essa ação não pode ser desfeita.`)) return;
+  const idx=evts.findIndex(x=>x.id===id);
+  evts.splice(idx,1);
+  ss(K_EVTS,evts);
+  toast(`🗑 Evento ${id} apagado`);
+  // If we're in detail view, go back to list
+  if(document.getElementById('ev-detalhe-view').style.display!=='none'){
+    voltarLista();
+  } else {
+    renderEventosDash();
+    renderEventosTabela();
+  }
 }
 function renderDetalhe(id){
   const evts=getEvts();
@@ -2303,6 +2337,7 @@ function renderDetalhe(id){
         <button class="orc-btn" onclick="mudarStatus('${id}','fechado')">🔒 Fechado</button>
         <button class="orc-btn" style="color:var(--red)" onclick="mudarStatus('${id}','cancelado')">✕ Cancelado</button>
         <button class="orc-btn" style="color:#1a73e8;border-color:#1a73e8" onclick="adicionarAgenda('${id}')">📅 Adicionar à Agenda</button>
+        <button class="orc-btn" style="color:var(--red)" onclick="apagarEvento('${id}')">🗑 Apagar Evento</button>
       </div>
     </div>
 
@@ -3566,10 +3601,28 @@ function abrirConfig(){
   document.getElementById('config-current-url').textContent=url?url.slice(0,60)+'...':'Não configurado';
   document.getElementById('config-last-sync').textContent=_lastSync?_lastSync.toLocaleString('pt-BR'):'—';
   document.getElementById('config-status').textContent='';
+  // Show current event number
+  const ano = new Date().getFullYear();
+  const curEvNum = sg(K_EVNUM+'_'+ano)||1;
+  document.getElementById('config-next-ev').value = curEvNum;
+  document.getElementById('config-ev-num-info').textContent =
+    `Atual: próximo será EVT${ano}-${String(curEvNum).padStart(3,'0')}`;
   document.getElementById('modal-config').classList.add('open');
 }
 function fecharConfig(){
   document.getElementById('modal-config').classList.remove('open');
+}
+
+function salvarNextEvNum(){
+  const val = parseInt(document.getElementById('config-next-ev').value);
+  if(!val || val < 1){ toast('⚠️ Informe um número válido','err'); return; }
+  const ano = new Date().getFullYear();
+  const key = K_EVNUM + '_' + ano;
+  ss(key, val);
+  const padded = String(val).padStart(3,'0');
+  document.getElementById('config-ev-num-info').textContent =
+    `✅ Próximo evento será EVT${ano}-${padded}`;
+  toast(`✅ Próximo evento: EVT${ano}-${padded}`);
 }
 function salvarConfig(){
   const url=document.getElementById('config-api-url').value.trim();
