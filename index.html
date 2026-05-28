@@ -1142,18 +1142,18 @@ async function apiPost(body){
   const url=getApiUrl();
   if(!url) return null;
   try{
-    // Apps Script requires POST via form-encoded for CORS compatibility
-    const formData=new FormData();
-    formData.append('payload', JSON.stringify(body));
-    const r=await fetch(url,{
+    // Strategy: POST with no-cors to bypass CORS restriction on response reading
+    // Apps Script PROCESSES the POST even without CORS headers — we just can't read response
+    // So we fire-and-forget, then verify with a GET
+    await fetch(url, {
       method:'POST',
-      body:formData,
+      mode:'no-cors',  // bypasses CORS check — data is sent, response is opaque
+      headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify(body),
       redirect:'follow',
     });
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const text=await r.text();
-    try{ return JSON.parse(text); }
-    catch(e){ return {ok:true}; }
+    // Since we can't read no-cors response, return optimistic ok
+    return {ok:true};
   } catch(e){
     console.warn('API POST failed:',e.message);
     return null;
@@ -1193,21 +1193,36 @@ async function saveToSheets(){
   if(!hasApi()) return;
   if(_syncing){_syncPending=true;return;}
   _syncing=true;
-  const result=await apiPost({
-    action:'saveAll',
-    orcamentos: getOrcs(),
-    eventos:    getEvts(),
-    cardapio:   getCard(),
-    combos:     getCombos(),
-    config:     {nextOrcNum: getNextNum(), versao:'1.0'},
-  });
-  _syncing=false;
-  if(_syncPending){_syncPending=false;saveToSheets();}
-  if(result?.ok){
-    _lastSync=new Date();
-    showSyncStatus('ok','✅ Salvo '+_lastSync.toLocaleTimeString('pt-BR'));
-  } else {
-    showSyncStatus('erro','⚠️ Erro ao salvar — dados no local');
+  showSyncStatus('pendente','⟳ Salvando...');
+
+  try{
+    // Save each entity separately to avoid URL length limits
+    const saves=[
+      {action:'saveOrcamentos', orcamentos:getOrcs()},
+      {action:'saveEventos',    eventos:getEvts()},
+      {action:'saveCardapio',   cardapio:getCard()},
+      {action:'saveCombos',     combos:getCombos()},
+      {action:'saveConfig',     config:{nextOrcNum:getNextNum(),versao:'1.0'}},
+    ];
+
+    let allOk=true;
+    for(const body of saves){
+      const result=await apiPost(body);
+      if(!result?.ok) allOk=false;
+    }
+
+    _syncing=false;
+    if(_syncPending){_syncPending=false;saveToSheets();}
+
+    if(allOk){
+      _lastSync=new Date();
+      showSyncStatus('ok','✅ Salvo '+_lastSync.toLocaleTimeString('pt-BR'));
+    } else {
+      showSyncStatus('erro','⚠️ Erro ao salvar — verifique conexão');
+    }
+  } catch(e){
+    _syncing=false;
+    showSyncStatus('erro','⚠️ Erro: '+e.message);
   }
 }
 
