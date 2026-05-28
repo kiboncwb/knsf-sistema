@@ -554,6 +554,7 @@ table.cross-table tfoot td{font-weight:700;border-top:2px solid var(--g200);}
         <option value="2023">2023</option>
       </select>
       <button class="btn-r" style="max-width:180px;min-width:0" onclick="abrirModalNovoEvento()">＋ Novo Evento</button>
+        <button class="btn-r" style="max-width:210px;min-width:0;background:#1a73e8" onclick="abrirModalForms()">📝 Buscar Formulários</button>
     </div>
 
     <!-- TABLE -->
@@ -595,6 +596,28 @@ table.cross-table tfoot td{font-weight:700;border-top:2px solid var(--g200);}
   </div>
 
 </div><!-- /pg-eventos -->
+
+<!-- MODAL FORMULÁRIOS -->
+<div class="modal-overlay" id="modal-forms">
+  <div class="modal-box" style="max-width:700px;width:96%">
+    <div class="modal-title">📝 Respostas do Google Forms</div>
+    <div id="forms-loading" style="text-align:center;padding:20px;color:var(--g400);font-size:14px">
+      ⟳ Buscando respostas...
+    </div>
+    <div id="forms-content" style="display:none">
+      <p style="font-size:13px;color:var(--g400);margin-bottom:12px">
+        Selecione qual resposta vincular a cada evento. O sistema tenta cruzar automaticamente 
+        pelo número do orçamento. Confirme ou ajuste onde necessário.
+      </p>
+      <div id="forms-lista"></div>
+    </div>
+    <div id="forms-error" style="display:none;color:var(--red);font-size:13px;padding:12px;background:var(--red-light);border-radius:8px"></div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn-r gray" style="max-width:120px;min-width:0" onclick="fecharModalForms()">Fechar</button>
+      <button class="btn-r" style="max-width:220px;min-width:0" id="forms-confirmar-btn" onclick="confirmarVinculoForms()" style="display:none">✅ Aplicar selecionados</button>
+    </div>
+  </div>
+</div>
 
 <!-- MODAL NOVO EVENTO -->
 <div class="modal-overlay" id="modal-novo-ev">
@@ -2279,6 +2302,7 @@ function renderDetalhe(id){
         <button class="orc-btn" onclick="mudarStatus('${id}','realizado')">🎉 Realizado</button>
         <button class="orc-btn" onclick="mudarStatus('${id}','fechado')">🔒 Fechado</button>
         <button class="orc-btn" style="color:var(--red)" onclick="mudarStatus('${id}','cancelado')">✕ Cancelado</button>
+        <button class="orc-btn" style="color:#1a73e8;border-color:#1a73e8" onclick="adicionarAgenda('${id}')">📅 Adicionar à Agenda</button>
       </div>
     </div>
 
@@ -2665,6 +2689,121 @@ function renderRelatorios(){
     :'<p style="color:var(--g400);font-size:13px">Nenhum dado ainda.</p>';
 }
 
+
+// ── GOOGLE AGENDA ──
+function adicionarAgenda(id){
+  const evts=getEvts();
+  const e=evts.find(x=>x.id===id);
+  if(!e){toast('⚠️ Evento não encontrado','err');return;}
+
+  // Validate minimum data
+  if(!e.data){toast('⚠️ Informe a data do evento antes de adicionar à agenda','err');return;}
+
+  // Build event dates
+  // Start = horarioEntrega (delivery time) or horarioInicio
+  // End   = horarioRetirada (pickup time) or horarioEncerramento
+  const dataBase = e.data; // YYYY-MM-DD
+  
+  function buildDateTime(date, time, offsetHours=0){
+    if(!time) {
+      // If no time, use all-day format
+      return null;
+    }
+    const [h,m] = time.split(':').map(Number);
+    const dt = new Date(date + 'T' + time + ':00');
+    return dt;
+  }
+
+  const startTime = e.horarioEntrega || e.horarioInicio || '08:00';
+  const endTime   = e.horarioRetirada || e.horarioEncerramento || '12:00';
+
+  // Handle overnight events (retirada next day)
+  const startH = parseInt(startTime.split(':')[0]);
+  const endH   = parseInt(endTime.split(':')[0]);
+  
+  // If end time is earlier than start time, it's next day
+  const startDate = dataBase;
+  let endDate = dataBase;
+  if(endH < startH || (endH === startH && parseInt(endTime.split(':')[1]) < parseInt(startTime.split(':')[1]))){
+    // Next day
+    const d = new Date(dataBase + 'T12:00:00');
+    d.setDate(d.getDate() + 1);
+    endDate = d.toISOString().split('T')[0];
+  }
+
+  // Format for Google Calendar URL: YYYYMMDDTHHmmss
+  const fmtGcal = (date, time) => {
+    if(!time) return date.replace(/-/g,'');
+    return date.replace(/-/g,'') + 'T' + time.replace(':','') + '00';
+  };
+
+  const gcalStart = fmtGcal(startDate, startTime);
+  const gcalEnd   = fmtGcal(endDate, endTime);
+
+  // Build title
+  const title = `Evento - ${e.cliente||'Cliente'}`;
+
+  // Build description
+  let desc = '';
+  desc += `${e.cliente||'—'}: ${e.tel||'—'}\n`;
+  if(e.tipo) desc += `${e.tipo}\n`;
+  desc += '\n';
+  
+  if(e.cerimonialista){
+    desc += `Cerimonial: ${e.cerimonialista}`;
+    if(e.telCerimonialista) desc += ` - ${e.telCerimonialista}`;
+    desc += '\n';
+  }
+  
+  if(e.promotorVal > 0){
+    desc += `Promotor: R$ ${fmtM(e.promotorVal)} — definir com equipe\n`;
+  }
+
+  // Payment status
+  const totalPago = e.total || 0;
+  // Try to infer payment — if forma has "50%" check if half paid
+  const pgto = e.formaPgto || '';
+  if(pgto.includes('50%') || pgto.toLowerCase().includes('reserva')){
+    const metade = totalPago / 2;
+    desc += `Pagamento: 50% na reserva + 50% na entrega (R$ ${fmtM(metade)} a receber)\n`;
+  } else {
+    desc += `Pagamento: ${pgto||'—'}\n`;
+  }
+
+  // Pedido
+  if(e.itens && e.itens.length > 0){
+    desc += '\nPedido:\n';
+    e.itens.forEach(i => {
+      desc += `• ${i.qty} ${i.nome}\n`;
+    });
+    // Pedido extra
+    if(e.pedidoExtra && e.pedidoExtra.length > 0){
+      desc += '\nExtra:\n';
+      e.pedidoExtra.forEach(p => {
+        (p.itens||[]).forEach(i => {
+          desc += `• ${i.qty} ${i.nome}\n`;
+        });
+      });
+    }
+  }
+
+  // Build Google Calendar URL
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text:   title,
+    dates:  `${gcalStart}/${gcalEnd}`,
+    details: desc.trim(),
+    location: e.end || '',
+    trp: 'false',
+    sprop: 'name:KNSF Sistema',
+  });
+
+  const gcalUrl = `https://calendar.google.com/calendar/render?${params.toString()}`;
+  
+  // Open in new tab
+  window.open(gcalUrl, '_blank');
+  toast('📅 Abrindo Google Agenda...');
+}
 
 // ── EXPORT RELATÓRIOS ──
 function exportarRelPDF(){
@@ -3511,6 +3650,198 @@ function restaurarBackup(file){
     }
   };
   r.readAsText(file);
+}
+
+// ── GOOGLE FORMS INTEGRATION ──
+// Column name mapping — maps form column names to system fields
+// Handles variations between 2025 and 2026 forms
+function mapFormsRow(row, headers){
+  const get = (...keys) => {
+    for(const k of keys){
+      const h = headers.find(h => h.toLowerCase().includes(k.toLowerCase()));
+      if(h && row[h]) return String(row[h]).trim();
+    }
+    return '';
+  };
+
+  // Extract num orçamento — look for number pattern
+  const numOrcRaw = get('orçamento','orcamento','número do seu','budget','número do orç');
+  const numOrc = numOrcRaw.replace(/[^0-9]/g,'') || numOrcRaw;
+
+  return {
+    nomeCliente:      get('nome completo','nome do cliente','nome','client name'),
+    tel:              get('telefone','whatsapp','celular','phone','tel'),
+    email:            get('e-mail','email','mail'),
+    cpf:              get('cpf'),
+    dataNasc:         get('nascimento','nasc','birth','data de nasc'),
+    estadoCivil:      get('estado civil','civil','marital'),
+    profissao:        get('profissão','profissao','profession','job','ocupação'),
+    endResidencia:    get('endereço completo de resid','endereço de resid','residência','resid'),
+    isPJFlag:         get('contrato será firmado','contrato como','pj','pf','pessoa'),
+    razaoSocial:      get('razão social','razao social','company'),
+    cnpj:             get('cnpj'),
+    tipoEvento:       get('tipo de evento','tipo evento','event type'),
+    dataEvento:       get('data do evento','data event','event date'),
+    horarioInicio:    get('horário de início','horario de inicio','início do evento','inicio'),
+    horarioEntrega:   get('horário ideal para entrega','entrega do carrinho','entrega'),
+    horarioEncerramento: get('horário de encerramento','encerramento','término'),
+    horarioRetirada:  get('horário ideal para retirada','retirada do carrinho','retirada'),
+    endEvento:        get('endereço completo do evento','endereço do evento','local do evento','end evento'),
+    convidados:       get('número de convidados','convidados','guests','quantos convidados'),
+    cerimonialista:   get('nome do cerimonialista','cerimonialista','assessoria','planner'),
+    telCerimonialista:get('telefone','whatsapp'),  // will be refined
+    numOrcamento:     numOrc,
+    formaPgto:        get('forma de pagamento','pagamento','payment'),
+    origem:           get('como você conheceu','conheceu','source','canal','origem'),
+    obs:              get('observações','observacao','informações adicionais','note'),
+    _raw: row,        // keep raw for debugging
+  };
+}
+
+let _formsRespostas = [];  // cached responses
+
+async function abrirModalForms(){
+  if(!hasApi()){
+    toast('⚠️ Configure a URL do Google Sheets primeiro (⚙️)','err');
+    return;
+  }
+  document.getElementById('modal-forms').classList.add('open');
+  document.getElementById('forms-loading').style.display='block';
+  document.getElementById('forms-content').style.display='none';
+  document.getElementById('forms-error').style.display='none';
+  document.getElementById('forms-confirmar-btn').style.display='none';
+
+  const data = await apiGet('action=getFormsRespostas');
+
+  document.getElementById('forms-loading').style.display='none';
+
+  if(!data || !data.ok){
+    document.getElementById('forms-error').style.display='block';
+    document.getElementById('forms-error').textContent =
+      '❌ ' + (data?.error || 'Erro ao buscar respostas. Verifique se o Apps Script tem acesso à planilha do Forms.');
+    return;
+  }
+
+  _formsRespostas = data.respostas || [];
+  const headers   = data.headers || [];
+
+  if(!_formsRespostas.length){
+    document.getElementById('forms-error').style.display='block';
+    document.getElementById('forms-error').textContent = 'Nenhuma resposta encontrada na planilha do Forms.';
+    return;
+  }
+
+  // Map each response
+  const mapped = _formsRespostas.map(row => mapFormsRow(row, headers));
+
+  // Cross with events — by numOrcamento
+  const evts = getEvts();
+  renderFormsCruzamento(mapped, evts);
+
+  document.getElementById('forms-content').style.display='block';
+  document.getElementById('forms-confirmar-btn').style.display='inline-flex';
+}
+
+function renderFormsCruzamento(mapped, evts){
+  const lista = document.getElementById('forms-lista');
+  if(!mapped.length){ lista.innerHTML='<p style="color:var(--g400)">Nenhuma resposta para exibir.</p>'; return; }
+
+  lista.innerHTML = mapped.map((f, fi) => {
+    // Try to find matching event by orçamento number
+    const numOrc = f.numOrcamento;
+    let matchEvt = null;
+    let matchScore = 'none';
+
+    if(numOrc){
+      matchEvt = evts.find(e => {
+        const evOrc = String(e.numOrcamento||'').replace('#','');
+        return evOrc === numOrc || evOrc === numOrc.replace('#','');
+      });
+      if(matchEvt) matchScore = 'ok';
+    }
+
+    // Fallback: match by client name similarity
+    if(!matchEvt && f.nomeCliente){
+      const best = evts.map(e => ({e, s:similaridade(e.cliente||'', f.nomeCliente)}))
+        .sort((a,b)=>b.s-a.s)[0];
+      if(best && best.s >= 0.7){ matchEvt = best.e; matchScore = 'warn'; }
+    }
+
+    const scoreColors = {ok:'#155724',warn:'#856404',none:'#555'};
+    const scoreLabels = {ok:'✅ Orçamento encontrado',warn:'⚠️ Match por nome',none:'❌ Sem match'};
+    const evtOpts = `<option value="">— Não vincular —</option>` +
+      evts.map(e=>`<option value="${e.id}"${matchEvt&&matchEvt.id===e.id?' selected':''}>${e.id} — ${e.cliente||'?'} (${fmtDataBR(e.data)})</option>`).join('');
+
+    return `<div style="border:1px solid var(--g100);border-radius:8px;padding:12px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+        <div>
+          <div style="font-size:14px;font-weight:700">${f.nomeCliente||'(sem nome)'}</div>
+          <div style="font-size:12px;color:var(--g400)">${f.tipoEvento||''} ${f.dataEvento?'· '+f.dataEvento:''} ${f.numOrcamento?'· Orç. #'+f.numOrcamento:''}</div>
+        </div>
+        <span style="font-size:11px;font-weight:700;color:${scoreColors[matchScore]}">${scoreLabels[matchScore]}</span>
+      </div>
+      <div style="font-size:12px;color:var(--g600);margin-bottom:8px">
+        ${f.endEvento?'📍 '+f.endEvento+'<br>':''} 
+        ${f.horarioEntrega?'🕐 Entrega: '+f.horarioEntrega:''} ${f.horarioRetirada?'→ Retirada: '+f.horarioRetirada:''}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:13px">
+        <label style="color:var(--g400);font-size:11px;font-weight:700;text-transform:uppercase;white-space:nowrap">Vincular ao evento:</label>
+        <select id="fvincular-${fi}" style="flex:1;font-size:13px;padding:5px 8px;border:1.5px solid var(--g100);border-radius:6px">${evtOpts}</select>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function fecharModalForms(){
+  document.getElementById('modal-forms').classList.remove('open');
+}
+
+function confirmarVinculoForms(){
+  const evts = getEvts();
+  const mapped = _formsRespostas.map(row => {
+    // We need headers — get from first response keys
+    const headers = Object.keys(row);
+    return mapFormsRow(row, headers);
+  });
+
+  let vinculados = 0;
+  mapped.forEach((f, fi) => {
+    const sel = document.getElementById('fvincular-'+fi);
+    if(!sel || !sel.value) return;
+    const evtId = sel.value;
+    const idx = evts.findIndex(e => e.id === evtId);
+    if(idx < 0) return;
+
+    const ev = evts[idx];
+    // Merge — only fill empty fields, never overwrite existing data
+    if(!ev.tel && f.tel)                   ev.tel = f.tel;
+    if(!ev.email && f.email)               ev.email = f.email;
+    if(!ev.cpf && f.cpf)                   ev.cpf = f.cpf;
+    if(!ev.dataNasc && f.dataNasc)         ev.dataNasc = f.dataNasc;
+    if(!ev.estadoCivil && f.estadoCivil)   ev.estadoCivil = f.estadoCivil;
+    if(!ev.profissao && f.profissao)       ev.profissao = f.profissao;
+    if(!ev.endResidencia && f.endResidencia) ev.endResidencia = f.endResidencia;
+    if(!ev.end && f.endEvento)             ev.end = f.endEvento;
+    if(!ev.horarioInicio && f.horarioInicio)       ev.horarioInicio = f.horarioInicio;
+    if(!ev.horarioEntrega && f.horarioEntrega)     ev.horarioEntrega = f.horarioEntrega;
+    if(!ev.horarioEncerramento && f.horarioEncerramento) ev.horarioEncerramento = f.horarioEncerramento;
+    if(!ev.horarioRetirada && f.horarioRetirada)   ev.horarioRetirada = f.horarioRetirada;
+    if(!ev.convidados && f.convidados)     ev.convidados = f.convidados;
+    if(!ev.cerimonialista && f.cerimonialista) ev.cerimonialista = f.cerimonialista;
+    if(!ev.formaPgto && f.formaPgto)       ev.formaPgto = f.formaPgto;
+    if(!ev.origem && f.origem)             ev.origem = f.origem;
+    if(!ev.numOrcamento && f.numOrcamento) ev.numOrcamento = f.numOrcamento;
+    if(f.razaoSocial){ ev.isPJ = true; ev.razaoSocial = f.razaoSocial; if(f.cnpj) ev.cnpj = f.cnpj; }
+    if(f.obs && !ev.obs) ev.obs = f.obs;
+
+    vinculados++;
+  });
+
+  ss(K_EVTS, evts);
+  fecharModalForms();
+  toast(`✅ ${vinculados} eventos enriquecidos com dados do formulário!`);
+  renderEventosDash();
+  renderEventosTabela();
 }
 
 // ── INIT ──
