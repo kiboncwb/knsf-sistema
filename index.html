@@ -47,13 +47,19 @@ header{background:var(--red);color:white;display:flex;align-items:center;gap:12p
 header img{width:42px;height:42px;border-radius:8px;flex-shrink:0;object-fit:cover;}
 .hd-title{font-size:16px;font-weight:700;}
 .hd-sub{font-size:11px;opacity:.8;}
-.hd-right{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
-.hd-btn{background:rgba(255,255,255,.18);border:1.5px solid rgba(255,255,255,.4);color:white;border-radius:7px;padding:6px 12px;font-size:12px;font-weight:600;transition:background .15s;}
+.hd-right{margin-left:auto;display:flex;gap:5px;flex-wrap:wrap;}
+.hd-btn{background:rgba(255,255,255,.18);border:1.5px solid rgba(255,255,255,.4);color:white;border-radius:7px;padding:6px 10px;font-size:12px;font-weight:600;transition:background .15s;}
+@media(max-width:600px){
+  .hd-btn{font-size:11px;padding:5px 7px;}
+  header{padding:9px 12px;gap:8px;}
+  .hd-title{font-size:14px;}
+  #sync-status{display:none;}
+}
 .hd-btn:hover{background:rgba(255,255,255,.3);}
 .hd-btn.active{background:white;color:var(--red);border-color:white;}
 /* TABS */
-.tabs{display:flex;background:white;border-bottom:2px solid var(--g100);padding:0 20px;gap:4px;overflow-x:auto;}
-.tab{padding:11px 16px;font-size:13px;font-weight:600;color:var(--g400);border:none;background:none;border-bottom:2.5px solid transparent;margin-bottom:-2px;white-space:nowrap;transition:all .15s;}
+.tabs{display:flex;background:white;border-bottom:2px solid var(--g100);padding:0 12px;gap:2px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.tab{padding:10px 12px;font-size:13px;font-weight:600;color:var(--g400);border:none;background:none;border-bottom:2.5px solid transparent;margin-bottom:-2px;white-space:nowrap;transition:all .15s;}
 .tab.active{color:var(--red);border-bottom-color:var(--red);}
 .tab:hover:not(.active){color:var(--g800);}
 /* PAGES */
@@ -74,10 +80,18 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--red);}
 input[readonly]{background:var(--g50);color:var(--g400);cursor:default;}
 textarea{min-height:56px;resize:none;}
 /* ITENS */
-.itens-hdr{display:grid;grid-template-columns:1fr 72px 74px 80px 32px;gap:6px;padding:0 4px 6px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--g400);}
-.item-row{display:grid;grid-template-columns:1fr 72px 74px 80px 32px;gap:6px;align-items:center;margin-bottom:7px;}
+.itens-hdr{display:grid;grid-template-columns:1fr 64px 70px 76px 30px;gap:5px;padding:0 4px 6px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--g400);}
+.item-row{display:grid;grid-template-columns:1fr 64px 70px 76px 30px;gap:5px;align-items:center;margin-bottom:7px;}
 .item-row select,.item-row input{font-size:13px;}
 .item-row input{text-align:center;}
+@media(max-width:560px){
+  /* Give sabor column more room — show full name */
+  .item-row{grid-template-columns:2fr 48px 56px 64px 26px;gap:3px;}
+  .item-row select{font-size:11px;padding:6px 4px;}
+  .item-row input{font-size:12px;padding:6px 4px;}
+  .itens-hdr{grid-template-columns:2fr 48px 56px 64px 26px;font-size:9px;gap:3px;}
+  .itens-hdr span:first-child{font-size:9px;}
+}
 .itot{font-size:13px;font-weight:600;color:var(--g600);text-align:right;padding-right:2px;}
 .rm-btn{background:none;border:none;color:var(--g200);font-size:18px;border-radius:5px;padding:3px 6px;transition:all .15s;}
 .rm-btn:hover{color:var(--red);background:var(--red-light);}
@@ -98,7 +112,10 @@ textarea{min-height:56px;resize:none;}
 .chip input[type=checkbox]{display:none;}
 .chip.on{border-color:var(--red);background:var(--red-light);color:var(--red);font-weight:700;}
 /* BTNS */
-.actions{display:flex;gap:10px;flex-wrap:wrap;}
+.actions{display:flex;gap:8px;flex-wrap:wrap;}
+@media(max-width:500px){
+  .actions .btn-r{min-width:calc(50% - 4px);font-size:12px;padding:10px 10px;}
+}
 .btn-r{flex:1;min-width:140px;padding:12px 16px;background:var(--red);color:white;border:none;border-radius:var(--r);font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:7px;transition:opacity .15s;}
 .btn-r:hover{opacity:.87;}
 .btn-r.gray{background:var(--g100);color:var(--g600);}
@@ -113,9 +130,15 @@ textarea{min-height:56px;resize:none;}
 .orc-det{font-size:12px;color:var(--g400);margin-top:1px;}
 .orc-val{font-size:15px;font-weight:700;text-align:right;}
 .orc-data{font-size:11px;color:var(--g400);text-align:right;}
-.orc-actions{display:flex;gap:6px;margin-left:8px;}
-.orc-btn{background:none;border:1.5px solid var(--g100);border-radius:6px;padding:5px 9px;font-size:12px;color:var(--g600);transition:all .15s;white-space:nowrap;}
+.orc-actions{display:flex;gap:5px;margin-left:6px;flex-wrap:wrap;justify-content:flex-end;}
+.orc-btn{background:none;border:1.5px solid var(--g100);border-radius:6px;padding:5px 8px;font-size:12px;color:var(--g600);transition:all .15s;white-space:nowrap;}
 .orc-btn:hover{border-color:var(--red);color:var(--red);background:var(--red-light);}
+@media(max-width:560px){
+  .orc-item{flex-wrap:wrap;gap:6px;}
+  .orc-actions{width:100%;justify-content:flex-start;margin-left:0;}
+  .orc-btn{font-size:11px;padding:4px 7px;}
+  .orc-num{min-width:36px;}
+}
 /* DASHBOARD */
 .dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px;}
 @media(max-width:440px){.dash-grid{grid-template-columns:1fr;}}
@@ -170,7 +193,13 @@ textarea{min-height:56px;resize:none;}
 .ev-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;}
 .ev-toolbar input,.ev-toolbar select{font-size:13px;padding:8px 10px;max-width:180px;}
 .ev-table-wrap{overflow-x:auto;}
-table.ev-table{width:100%;border-collapse:collapse;font-size:13px;min-width:900px;}
+table.ev-table{width:100%;border-collapse:collapse;font-size:13px;min-width:800px;}
+@media(max-width:600px){
+  .ev-table-wrap{-webkit-overflow-scrolling:touch;}
+  table.ev-table{font-size:11px;min-width:700px;}
+  table.ev-table thead th{padding:7px 6px;font-size:9px;}
+  table.ev-table tbody td{padding:7px 6px;}
+}
 table.ev-table thead tr{background:var(--red);color:white;}
 table.ev-table thead th{padding:9px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;cursor:pointer;user-select:none;}
 table.ev-table thead th:hover{background:var(--red-d);}
@@ -208,6 +237,7 @@ table.ped-table tfoot td{font-weight:700;color:var(--red);border-top:2px solid v
 /* MODAL */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center;}
 .modal-overlay.open{display:flex;}
+.modal-overlay.visible{display:flex;}
 .modal-box{background:white;border-radius:var(--r);padding:24px;max-width:480px;width:95%;max-height:90vh;overflow-y:auto;}
 .modal-title{font-size:16px;font-weight:700;color:var(--g800);margin-bottom:16px;}
 .modal-actions{display:flex;gap:8px;margin-top:20px;justify-content:flex-end;}
@@ -258,6 +288,32 @@ table.ped-table tfoot td{font-weight:700;color:var(--red);border-top:2px solid v
 .imp-step-num.active{background:var(--red);color:white;}
 
 /* TOAST */
+.preview-orc-box{
+  background:white;border-radius:var(--r);padding:20px;
+  max-width:720px;width:96%;
+  max-height:96vh;height:96vh;
+  display:flex;flex-direction:column;
+  box-shadow:0 8px 40px rgba(0,0,0,.25);
+}
+#modal-preview-orc-content{
+  flex:1;
+  overflow:hidden;
+  display:flex;
+  align-items:flex-start;
+  justify-content:center;
+}
+/* Scale the PDF doc to fit available height */
+#modal-preview-orc-content .pdf-page{
+  transform-origin:top center;
+  width:210mm;
+  flex-shrink:0;
+}
+@media(max-width:600px){
+  .preview-orc-box{
+    width:100%;height:100%;max-height:100vh;
+    border-radius:0;padding:14px;
+  }
+}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a8a3c;color:white;padding:12px 22px;border-radius:24px;font-size:14px;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,.2);opacity:0;transition:opacity .3s;pointer-events:none;z-index:999;white-space:nowrap;}
 .toast.show{opacity:1;}
 /* PRINT DOC */
@@ -420,7 +476,7 @@ table.cross-table tfoot td{font-weight:700;border-top:2px solid var(--g200);}
         <div class="field"><label>Tipo de Evento</label>
           <select id="tipo">
             <option value="">— selecionar —</option>
-            <option>Aniversário Infantil</option><option>Aniversário Adulto</option>
+            <option>Aniversário</option><option>Aniversário</option>
             <option>Casamento</option><option>Festa 15 anos</option>
             <option>Formatura</option><option>Corporativo</option>
             <option>Confraternização</option><option>Bar/Bat Mitzvah</option>
@@ -443,6 +499,10 @@ table.cross-table tfoot td{font-weight:700;border-top:2px solid var(--g200);}
       <div id="ilist"></div>
       <button class="add-btn" onclick="addItem()">＋ Adicionar sabor</button>
       <div class="totais">
+        <div class="trow" style="margin-bottom:6px;padding-bottom:8px;border-bottom:1px solid var(--g100)">
+          <label style="color:var(--g400)">Total picolés</label>
+          <div class="tv" id="total-picoles" style="font-size:15px;font-weight:700;color:var(--g600)">0 un.</div>
+        </div>
         <div class="trow"><label>Subtotal</label><div class="tv" id="tsub">R$ 0,00</div></div>
         <div class="trow"><label>Frete (+)</label><input type="number" id="frete" placeholder="" min="0" step="5" oninput="calc()"></div>
         <div class="trow"><label>Desconto (−)</label><input type="number" id="desc" placeholder="" min="0" step="5" oninput="calc()"></div>
@@ -466,6 +526,7 @@ table.cross-table tfoot td{font-weight:700;border-top:2px solid var(--g200);}
     <div class="actions">
       <button class="btn-r" onclick="salvar()">💾 Salvar Orçamento</button>
       <button class="btn-r gray" onclick="salvarPDF()">⬇ Salvar PDF</button>
+      <button class="btn-r gray" onclick="confirmarNovoOrcamento()" style="background:var(--g50);color:var(--g600);border:1.5px solid var(--g200)">✚ Novo Orçamento</button>
     </div>
 
   </div>
@@ -643,7 +704,7 @@ table.cross-table tfoot td{font-weight:700;border-top:2px solid var(--g200);}
         <label>Tipo de Evento</label>
         <select id="modal-ev-tipo">
           <option value="">—</option>
-          <option>Aniversário Infantil</option><option>Aniversário Adulto</option>
+          <option>Aniversário</option><option>Aniversário</option>
           <option>Casamento</option><option>Festa 15 anos</option>
           <option>Formatura</option><option>Corporativo</option>
           <option>Confraternização</option><option>Bar/Bat Mitzvah</option>
@@ -708,7 +769,7 @@ table.cross-table tfoot td{font-weight:700;border-top:2px solid var(--g200);}
       <div class="field"><label>Tipo de Evento</label>
         <select id="rf-tipo" onchange="renderRelatorios()">
           <option value="">Todos</option>
-          <option>Aniversário Infantil</option><option>Aniversário Adulto</option>
+          <option>Aniversário</option><option>Aniversário</option>
           <option>Casamento</option><option>Festa 15 anos</option>
           <option>Formatura</option><option>Corporativo</option>
           <option>Confraternização</option><option>Outros</option>
@@ -1129,6 +1190,20 @@ table.cross-table tfoot td{font-weight:700;border-top:2px solid var(--g200);}
   </div>
 </div>
 
+<!-- MODAL PREVIEW ORÇAMENTO -->
+<div class="modal-overlay" id="modal-preview-orc" onclick="fecharPreviewOrc(event)">
+  <div class="preview-orc-box" onclick="event.stopPropagation()">
+    <div class="no-print" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:15px;font-weight:700;color:var(--g800)" id="preview-orc-title">Orçamento</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-r" style="max-width:140px;min-width:0;font-size:13px" onclick="imprimirPreviewOrc()">⬇ Salvar PDF</button>
+        <button class="btn-r gray" style="max-width:100px;min-width:0;font-size:13px" onclick="fecharPreviewOrc()">Fechar</button>
+      </div>
+    </div>
+    <div id="modal-preview-orc-content" style="overflow-y:auto;max-height:75vh"></div>
+  </div>
+</div>
+
 </div><!-- /app -->
 <div class="toast" id="toast"></div>
 
@@ -1402,7 +1477,7 @@ function getPreco(sel){
 }
 
 function calc(){
-  let sub=0;
+  let sub=0, totalQty=0;
   document.querySelectorAll('.item-row').forEach(row=>{
     const id=row.id;
     const sel=document.getElementById('s'+id);
@@ -1412,11 +1487,14 @@ function calc(){
     document.getElementById('p'+id).textContent=pr?`R$ ${fmt0(pr)}`:'—';
     document.getElementById('t'+id).textContent=`R$ ${fmtM(tot)}`;
     sub+=tot;
+    totalQty+=qty;
   });
   const frete=parseFloat(document.getElementById('frete').value)||0;
   const desc=parseFloat(document.getElementById('desc').value)||0;
   document.getElementById('tsub').textContent=`R$ ${fmtM(sub)}`;
   document.getElementById('ttotal').textContent=`R$ ${fmtM(sub+frete-desc)}`;
+  const tpEl=document.getElementById('total-picoles');
+  if(tpEl) tpEl.textContent=totalQty>0?`${totalQty} un.`:'0 un.';
 }
 
 // ── CHIPS ──
@@ -1536,7 +1614,8 @@ function salvar(){
   if(d.itens.length===0){toast('⚠️ Adicione pelo menos um sabor');return;}
   persistir(d);
   toast('✅ Orçamento #'+d.num+' salvo!');
-  novoForm();
+  // Keep data on screen — don't clear form
+  // User must click "Novo Orçamento" to start fresh
 }
 function persistir(d){
   const orcs=getOrcs();
@@ -1546,6 +1625,14 @@ function persistir(d){
 }
 
 // ── NOVO FORM ──
+function confirmarNovoOrcamento(){
+  const d=coletar();
+  if(d.itens.length>0){
+    if(!confirm('Iniciar novo orçamento? O orçamento atual será perdido se não tiver sido salvo.')) return;
+  }
+  novoForm();
+}
+
 function novoForm(){
   const n=getNextNum();
   ss(K_NUM,n+1);
@@ -1680,7 +1767,8 @@ function buildPDFHTML(d){
 function salvarPDF(){
   const d=coletar();
   if(d.itens.length===0){toast('⚠️ Adicione pelo menos um sabor');return;}
-  if(d.itens.length>0) persistir(d);
+  // Always save before printing
+  persistir(d);
 
   // Build filename — pattern: Orcamento_1217_Nome_Cliente.pdf
   const nomeCliente=(d.cliente||'cliente')
@@ -1721,11 +1809,60 @@ function renderLista(orcs){
         <div class="orc-data">${o.dataEmissao||''}</div>
       </div>
       <div class="orc-actions">
+        <button class="orc-btn" onclick="verOrc('${o.num}')">👁 Ver</button>
         <button class="orc-btn" onclick="carregarOrc('${o.num}')">✏️ Editar</button>
         <button class="orc-btn" onclick="duplicarOrc('${o.num}')">📋 Duplicar</button>
         <button class="orc-btn" style="color:var(--red)" onclick="apagarOrc('${o.num}',event)">🗑</button>
       </div>
     </div>`).join('');
+}
+
+function verOrc(num){
+  const orcs=getOrcs();
+  const o=orcs.find(x=>x.num===num||x.num==='#'+num.replace('#',''));
+  if(!o){toast('⚠️ Orçamento não encontrado','err');return;}
+  document.getElementById('preview-orc-title').textContent='Orçamento '+o.num+' — '+o.cliente;
+  const contentEl=document.getElementById('modal-preview-orc-content');
+  contentEl.innerHTML=buildPDFHTML(o);
+  document.getElementById('modal-preview-orc').classList.add('visible');
+
+  // Scale PDF to fit available height
+  requestAnimationFrame(()=>{
+    const page=contentEl.querySelector('.pdf-page');
+    if(!page) return;
+    const availH=contentEl.clientHeight;
+    const availW=contentEl.clientWidth;
+    const pageH=page.scrollHeight;
+    const pageW=page.scrollWidth||794; // ~210mm at 96dpi
+    const scaleH=availH/pageH;
+    const scaleW=availW/pageW;
+    const scale=Math.min(scaleH,scaleW,1); // never upscale
+    page.style.transform=`scale(${scale})`;
+    page.style.transformOrigin='top center';
+    // Adjust container height to match scaled content
+    contentEl.style.height=(pageH*scale)+'px';
+    contentEl.style.overflow='hidden';
+  });
+}
+function fecharPreviewOrc(e){
+  if(e&&e.target!==document.getElementById('modal-preview-orc')) return;
+  document.getElementById('modal-preview-orc').classList.remove('visible');
+}
+function imprimirPreviewOrc(){
+  // Get data from the current preview
+  const title=document.getElementById('preview-orc-title').textContent;
+  const num=title.match(/#?(\d+)/)?.[1]||'';
+  const orcs=getOrcs();
+  const o=orcs.find(x=>String(x.num).replace('#','')=== num);
+  if(!o){toast('⚠️ Orçamento não encontrado','err');return;}
+  const nomeCliente=(o.cliente||'cliente').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9 ]/g,'').trim().replace(/\s+/g,'_');
+  const numLimpo=String(o.num).replace('#','');
+  const filename=`Orcamento_${numLimpo}_${nomeCliente}.pdf`;
+  document.getElementById('print-area').innerHTML=buildPDFHTML(o);
+  const prevTitle=document.title;
+  document.title=filename;
+  document.getElementById('modal-preview-orc').classList.remove('visible');
+  setTimeout(()=>{window.print();setTimeout(()=>{document.title=prevTitle;},2000);},200);
 }
 
 function renderDash(orcs){
@@ -2301,7 +2438,7 @@ function renderDetalhe(id){
   const ROW=(lbl,content)=>
     `<div class="det-row"><span class="det-lbl">${lbl}</span><span class="det-val">${content}</span></div>`;
 
-  const tipoOpts=['','Aniversário Infantil','Aniversário Adulto','Casamento','Festa 15 anos',
+  const tipoOpts=['','Aniversário','Aniversário','Casamento','Festa 15 anos',
     'Formatura','Corporativo','Confraternização','Bar/Bat Mitzvah','Batizado','Chá de Bebê','Chá Revelação','Outros'];
   const origemOpts=['','Google','Instagram','Indicação','Facebook','TikTok','Evento anterior','Outro'];
   const estadoCivilOpts=['','Solteiro(a)','Casado(a)','Divorciado(a)','Viúvo(a)','União estável'];
