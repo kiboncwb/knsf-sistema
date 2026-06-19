@@ -290,29 +290,37 @@ table.ped-table tfoot td{font-weight:700;color:var(--red);border-top:2px solid v
 /* TOAST */
 .preview-orc-box{
   background:white;border-radius:var(--r);padding:20px;
-  max-width:720px;width:96%;
+  max-width:900px;width:96%;
   max-height:96vh;height:96vh;
   display:flex;flex-direction:column;
   box-shadow:0 8px 40px rgba(0,0,0,.25);
 }
-#modal-preview-orc-content{
-  flex:1;
-  overflow:hidden;
-  display:flex;
-  align-items:flex-start;
-  justify-content:center;
-}
-/* Scale the PDF doc to fit available height */
+/* Scale the PDF doc via zoom */
 #modal-preview-orc-content .pdf-page{
   transform-origin:top center;
   width:210mm;
   flex-shrink:0;
+  box-shadow:0 2px 16px rgba(0,0,0,.12);
 }
+.zoom-controls{
+  display:flex;align-items:center;gap:4px;
+  background:var(--g50);border-radius:8px;padding:4px;
+  border:1.5px solid var(--g100);
+}
+.zoom-btn{
+  width:30px;height:30px;border-radius:6px;border:none;background:white;
+  color:var(--g600);font-size:16px;font-weight:700;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 1px 2px rgba(0,0,0,.08);transition:all .15s;
+}
+.zoom-btn:hover{background:var(--red-light);color:var(--red);}
+.zoom-label{font-size:12px;font-weight:700;color:var(--g600);min-width:42px;text-align:center;}
 @media(max-width:600px){
   .preview-orc-box{
     width:100%;height:100%;max-height:100vh;
     border-radius:0;padding:14px;
   }
+  .zoom-controls{display:none;} /* mobile usa pinch-to-zoom nativo */
 }
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a8a3c;color:white;padding:12px 22px;border-radius:24px;font-size:14px;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,.2);opacity:0;transition:opacity .3s;pointer-events:none;z-index:999;white-space:nowrap;}
 .toast.show{opacity:1;}
@@ -1193,14 +1201,22 @@ table.cross-table tfoot td{font-weight:700;border-top:2px solid var(--g200);}
 <!-- MODAL PREVIEW ORÇAMENTO -->
 <div class="modal-overlay" id="modal-preview-orc" onclick="fecharPreviewOrc(event)">
   <div class="preview-orc-box" onclick="event.stopPropagation()">
-    <div class="no-print" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div class="no-print" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px">
       <div style="font-size:15px;font-weight:700;color:var(--g800)" id="preview-orc-title">Orçamento</div>
-      <div style="display:flex;gap:8px">
-        <button class="btn-r" style="max-width:140px;min-width:0;font-size:13px" onclick="imprimirPreviewOrc()">⬇ Salvar PDF</button>
-        <button class="btn-r gray" style="max-width:100px;min-width:0;font-size:13px" onclick="fecharPreviewOrc()">Fechar</button>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div class="zoom-controls">
+          <button class="zoom-btn" onclick="zoomPreviewOrc(-0.1)" title="Diminuir zoom">−</button>
+          <span class="zoom-label" id="zoom-level-label">100%</span>
+          <button class="zoom-btn" onclick="zoomPreviewOrc(0.1)" title="Aumentar zoom">+</button>
+          <button class="zoom-btn" onclick="zoomPreviewOrcReset()" title="Ajustar à tela" style="font-size:11px;width:auto;padding:0 8px">⊡</button>
+        </div>
+        <button class="btn-r" style="max-width:130px;min-width:0;font-size:13px;margin:0" onclick="imprimirPreviewOrc()">⬇ Salvar PDF</button>
+        <button class="btn-r gray" style="max-width:90px;min-width:0;font-size:13px;margin:0" onclick="fecharPreviewOrc()">Fechar</button>
       </div>
     </div>
-    <div id="modal-preview-orc-content" style="overflow-y:auto;max-height:75vh"></div>
+    <div id="modal-preview-orc-wrap" style="flex:1;overflow:auto;display:flex;justify-content:center;align-items:flex-start;background:var(--g50);border-radius:8px;padding:16px">
+      <div id="modal-preview-orc-content"></div>
+    </div>
   </div>
 </div>
 
@@ -1275,6 +1291,18 @@ async function apiPost(body){
 }
 
 // ── LOAD FROM SHEETS (on startup) ──
+// Campos de data que precisam normalização ao vir do Sheets
+// (o Google Sheets serializa datas como objetos/strings com timestamp)
+const DATE_FIELDS_ORC = ['dataEmissao','dataEvento'];
+const DATE_FIELDS_EVT = ['data','dataNasc'];
+
+function normalizeRecordDates(record, fields){
+  fields.forEach(f=>{
+    if(record[f]) record[f]=normalizeDate(record[f]);
+  });
+  return record;
+}
+
 async function loadFromSheets(){
   if(!hasApi()) return false;
   showSyncStatus('carregando','⟳ Carregando dados...');
@@ -1283,9 +1311,19 @@ async function loadFromSheets(){
     showSyncStatus('erro','⚠️ Erro ao carregar dados');
     return false;
   }
-  // Save to local cache
-  if(data.orcamentos?.length) ss(K_ORCS, data.orcamentos);
-  if(data.eventos?.length)    ss(K_EVTS, data.eventos);
+  // Normalize date fields before saving to local cache —
+  // Google Sheets pode retornar datas com timestamp completo
+  if(data.orcamentos?.length){
+    data.orcamentos.forEach(o=>normalizeRecordDates(o, DATE_FIELDS_ORC));
+    ss(K_ORCS, data.orcamentos);
+  }
+  if(data.eventos?.length){
+    data.eventos.forEach(e=>{
+      normalizeRecordDates(e, DATE_FIELDS_EVT);
+      if(e.data) e.mes=getMes(e.data); // recalcula mês com data já limpa
+    });
+    ss(K_EVTS, data.eventos);
+  }
   if(data.cardapio?.length)   ss(K_CARD, data.cardapio);
   if(data.combos?.length)     ss(K_COMBOS, data.combos);
   if(data.config?.nextOrcNum) ss(K_NUM, parseInt(data.config.nextOrcNum)||1217);
@@ -1660,7 +1698,7 @@ function novoForm(){
 
 // ── IMPRIMIR ──
 function buildPDFHTML(d){
-  const fD=v=>{if(!v||!v.includes('-'))return v||'—';const[y,m,dd]=v.split('-');return`${dd}/${m}/${y}`;};
+  const fD=v=>{const iso=normalizeDate(v);if(!iso)return v||'—';const[y,m,dd]=iso.split('-');return`${dd}/${m}/${y}`;};
 
   // cards
   const cardsHTML=`
@@ -1817,43 +1855,81 @@ function renderLista(orcs){
     </div>`).join('');
 }
 
+let _previewZoom=1;
+let _previewBaseScale=1; // scale that fits the screen at 100%
+let _previewCurOrcNum=null;
+
 function verOrc(num){
   const orcs=getOrcs();
   const o=orcs.find(x=>x.num===num||x.num==='#'+num.replace('#',''));
   if(!o){toast('⚠️ Orçamento não encontrado','err');return;}
+  _previewCurOrcNum=o.num;
   document.getElementById('preview-orc-title').textContent='Orçamento '+o.num+' — '+o.cliente;
   const contentEl=document.getElementById('modal-preview-orc-content');
   contentEl.innerHTML=buildPDFHTML(o);
   document.getElementById('modal-preview-orc').classList.add('visible');
 
-  // Scale PDF to fit available height
+  // Calculate base scale to fit available space, then apply as 100% zoom
   requestAnimationFrame(()=>{
-    const page=contentEl.querySelector('.pdf-page');
-    if(!page) return;
-    const availH=contentEl.clientHeight;
-    const availW=contentEl.clientWidth;
-    const pageH=page.scrollHeight;
-    const pageW=page.scrollWidth||794; // ~210mm at 96dpi
-    const scaleH=availH/pageH;
-    const scaleW=availW/pageW;
-    const scale=Math.min(scaleH,scaleW,1); // never upscale
-    page.style.transform=`scale(${scale})`;
-    page.style.transformOrigin='top center';
-    // Adjust container height to match scaled content
-    contentEl.style.height=(pageH*scale)+'px';
-    contentEl.style.overflow='hidden';
+    calcPreviewBaseScale();
+    _previewZoom=1;
+    applyPreviewZoom();
   });
+}
+
+function calcPreviewBaseScale(){
+  const wrap=document.getElementById('modal-preview-orc-wrap');
+  const contentEl=document.getElementById('modal-preview-orc-content');
+  const page=contentEl.querySelector('.pdf-page');
+  if(!page||!wrap) return;
+  // Reset transform to measure natural size
+  page.style.transform='none';
+  const availH=wrap.clientHeight-32; // minus padding
+  const availW=wrap.clientWidth-32;
+  const pageH=page.scrollHeight;
+  const pageW=page.scrollWidth||794;
+  const scaleH=availH/pageH;
+  const scaleW=availW/pageW;
+  _previewBaseScale=Math.min(scaleH,scaleW,1.3); // allow slight upscale if there's room
+}
+
+function applyPreviewZoom(){
+  const contentEl=document.getElementById('modal-preview-orc-content');
+  const page=contentEl.querySelector('.pdf-page');
+  if(!page) return;
+  const finalScale=_previewBaseScale*_previewZoom;
+  page.style.transform=`scale(${finalScale})`;
+  page.style.transformOrigin='top center';
+  // Resize content wrapper to match scaled page (avoids huge empty space)
+  contentEl.style.width=(page.scrollWidth*finalScale)+'px';
+  contentEl.style.height=(page.scrollHeight*finalScale)+'px';
+  document.getElementById('zoom-level-label').textContent=Math.round(_previewZoom*100)+'%';
+}
+
+function zoomPreviewOrc(delta){
+  _previewZoom=Math.max(0.3,Math.min(3,_previewZoom+delta));
+  applyPreviewZoom();
+}
+
+function zoomPreviewOrcReset(){
+  calcPreviewBaseScale();
+  _previewZoom=1;
+  applyPreviewZoom();
 }
 function fecharPreviewOrc(e){
   if(e&&e.target!==document.getElementById('modal-preview-orc')) return;
   document.getElementById('modal-preview-orc').classList.remove('visible');
+  _previewCurOrcNum=null;
 }
+
+window.addEventListener('resize',()=>{
+  const modal=document.getElementById('modal-preview-orc');
+  if(modal&&modal.classList.contains('visible')) zoomPreviewOrcReset();
+});
 function imprimirPreviewOrc(){
-  // Get data from the current preview
-  const title=document.getElementById('preview-orc-title').textContent;
-  const num=title.match(/#?(\d+)/)?.[1]||'';
+  // Use the orçamento number stored when the preview was opened — more reliable than parsing the title
   const orcs=getOrcs();
-  const o=orcs.find(x=>String(x.num).replace('#','')=== num);
+  const o=orcs.find(x=>x.num===_previewCurOrcNum);
   if(!o){toast('⚠️ Orçamento não encontrado','err');return;}
   const nomeCliente=(o.cliente||'cliente').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9 ]/g,'').trim().replace(/\s+/g,'_');
   const numLimpo=String(o.num).replace('#','');
@@ -2062,7 +2138,40 @@ function addProduto(){
 // ── HELPERS ──
 function fmtM(v){return(v||0).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.');}
 function fmt0(v){return(v||0).toFixed(0);}
-function fmtDataBR(v){if(!v||!v.includes('-'))return v||'';const[y,m,d]=v.split('-');return`${d}/${m}/${y}`;}
+// Normaliza qualquer formato de data para YYYY-MM-DD
+// Lida com: ISO simples (2026-12-30), ISO com timestamp (2026-12-30T03:00:00.000Z),
+// objeto Date, DD/MM/YYYY, ou valores vindos do Google Sheets como Date serializado
+function normalizeDate(v){
+  if(!v) return '';
+  if(v instanceof Date) {
+    const y=v.getFullYear(), m=String(v.getMonth()+1).padStart(2,'0'), d=String(v.getDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
+  v=String(v).trim();
+  if(!v) return '';
+  // ISO com timestamp: 2026-12-30T03:00:00.000Z → pega só a data
+  if(/^\d{4}-\d{2}-\d{2}T/.test(v)) return v.split('T')[0];
+  // ISO simples: 2026-12-30
+  if(/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  // DD/MM/YYYY → converte para ISO
+  if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(v)){
+    const[d,m,y]=v.split('/');
+    return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+  }
+  // Última tentativa: deixar o JS tentar parsear
+  const dt=new Date(v);
+  if(!isNaN(dt.getTime())){
+    const y=dt.getFullYear(), m=String(dt.getMonth()+1).padStart(2,'0'), d=String(dt.getDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
+  return '';
+}
+function fmtDataBR(v){
+  const iso=normalizeDate(v);
+  if(!iso) return v||'';
+  const[y,m,d]=iso.split('-');
+  return `${d}/${m}/${y}`;
+}
 function toast(msg,type=''){
   const el=document.getElementById('toast');
   el.style.background=type==='err'?'#cc1717':'#1a8a3c';
@@ -2227,7 +2336,9 @@ function nextEvId(ano){
 function getMes(dataStr){
   if(!dataStr) return '';
   const meses=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
-  const[y,m]=dataStr.split('-');
+  const iso=normalizeDate(dataStr);
+  if(!iso) return '';
+  const[y,m]=iso.split('-');
   return meses[parseInt(m)-1]||'';
 }
 
@@ -2273,7 +2384,8 @@ function criarEvento(){
   const data=document.getElementById('modal-ev-data').value;
   if(!cliente){toast('⚠️ Informe o nome do cliente','err');return;}
   if(!data){toast('⚠️ Informe a data do evento','err');return;}
-  const ano=data.split('-')[0];
+  const dataIso=normalizeDate(data);
+  const ano=dataIso.split('-')[0];
   const id=nextEvId(ano);
   const numOrc=document.getElementById('modal-num-orc').value.replace('#','').trim();
   const orcs=getOrcs();
@@ -2487,7 +2599,7 @@ function renderDetalhe(id){
         ${ROW('WhatsApp',INP('tel',e.tel,'tel'))}
         ${ROW('E-mail',INP('email',e.email,'email'))}
         ${ROW('CPF',INP('cpf',e.cpf))}
-        ${ROW('Data Nasc.',INP('dataNasc',e.dataNasc,'date'))}
+        ${ROW('Data Nasc.',INP('dataNasc',normalizeDate(e.dataNasc),'date'))}
         ${ROW('Estado Civil',SEL('estadoCivil',e.estadoCivil||'',estadoCivilOpts))}
         ${ROW('Profissão',INP('profissao',e.profissao))}
         ${ROW('End. Residência',INP('endResidencia',e.endResidencia))}
@@ -2513,7 +2625,7 @@ function renderDetalhe(id){
       <!-- ── DADOS DO EVENTO ── -->
       <div class="det-card">
         <div class="det-card-title">🎉 Dados do Evento</div>
-        ${ROW('Data',`<input type="date" value="${e.data||''}" 
+        ${ROW('Data',`<input type="date" value="${normalizeDate(e.data)}" 
           onchange="saveField('${id}','data',this.value);saveField('${id}','mes',getMes(this.value));document.getElementById('mes-lbl-${id}').textContent=getMes(this.value)">
           <span id="mes-lbl-${id}" style="margin-left:6px;font-size:11px;color:var(--g400)">${e.mes||''}</span>`)}
         ${ROW('Tipo',SEL('tipo',e.tipo||'',tipoOpts))}
@@ -2762,7 +2874,9 @@ function renderRelatorios(){
   const mesMap={};
   evts.forEach(e=>{
     if(!e.data) return;
-    const[y,m]=e.data.split('-');
+    const dIso=normalizeDate(e.data);
+    if(!dIso) return;
+    const[y,m]=dIso.split('-');
     const k=`${y}-${m}`;
     if(!mesMap[k]){mesMap[k]={label:mesesNomes[parseInt(m)-1]+'/'+y.slice(2),tipos:{},n:0,fat:0};}
     mesMap[k].n++;
@@ -3511,7 +3625,8 @@ function confirmarImportacaoEventos(){
   impEvMapped.forEach(novo=>{
     // generate ID if missing
     if(!novo.id){
-      const ano=novo.data?novo.data.split('-')[0]:new Date().getFullYear().toString();
+      const dIso=normalizeDate(novo.data);
+      const ano=dIso?dIso.split('-')[0]:new Date().getFullYear().toString();
       novo.id=nextEvId(ano);
     }
     novo.ano=novo.id.replace('EVT','').split('-')[0];
