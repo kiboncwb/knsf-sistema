@@ -578,6 +578,21 @@ table.cross-table tfoot td{font-weight:700;border-top:2px solid var(--g200);}
           <input type="date" id="f-ate" onchange="aplicarFiltro()">
         </div>
         <button class="btn-filtro sec" onclick="resetFiltro()">↺ Limpar</button>
+        <div class="field" style="min-width:190px">
+          <label>Ordenar por</label>
+          <select id="f-ordenar" onchange="aplicarFiltro()">
+            <option value="criacao-desc">Mais recentes primeiro</option>
+            <option value="criacao-asc">Mais antigos primeiro</option>
+            <option value="valor-desc">Maior valor primeiro</option>
+            <option value="valor-asc">Menor valor primeiro</option>
+            <option value="evento-desc">Data do evento — mais distante</option>
+            <option value="evento-asc">Data do evento — mais próxima</option>
+            <option value="cliente-asc">Cliente (A-Z)</option>
+            <option value="cliente-desc">Cliente (Z-A)</option>
+            <option value="num-desc">Nº orçamento (maior primeiro)</option>
+            <option value="num-asc">Nº orçamento (menor primeiro)</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -1468,7 +1483,10 @@ function goSub(sub){
     document.getElementById('sub-'+s).style.display=s===sub?'block':'none';
     document.getElementById('tab-'+s).classList.toggle('active',s===sub);
   });
-  if(sub==='hist'){renderLista(getOrcs());renderDash(getOrcs());}
+  if(sub==='hist'){
+    const ordenado=ordenarOrcamentos(getOrcs());
+    renderLista(ordenado);renderDash(ordenado);
+  }
 }
 
 // ── CARDÁPIO OPTS ──
@@ -1984,8 +2002,41 @@ function aplicarFiltro(){
       return true;
     });
   }
+
+  filtrado=ordenarOrcamentos(filtrado);
   renderLista(filtrado);
   renderDash(filtrado);
+}
+
+// ── ORDENAÇÃO DO HISTÓRICO ──
+function ordenarOrcamentos(orcs){
+  const modo=document.getElementById('f-ordenar')?.value||'criacao-desc';
+  const list=[...orcs];
+
+  // savedAt é a data/hora de criação real (ISO timestamp)
+  const getCriacao=o=>o.savedAt?new Date(o.savedAt).getTime():0;
+  const getValor=o=>o.total||0;
+  const getEventoData=o=>{
+    const iso=normalizeDate(o.dataEvento);
+    return iso?new Date(iso).getTime():0;
+  };
+  const getNum=o=>parseInt(String(o.num).replace('#',''))||0;
+  const getClienteNome=o=>(o.cliente||'').toLowerCase();
+
+  switch(modo){
+    case 'criacao-desc': list.sort((a,b)=>getCriacao(b)-getCriacao(a)); break;
+    case 'criacao-asc':  list.sort((a,b)=>getCriacao(a)-getCriacao(b)); break;
+    case 'valor-desc':   list.sort((a,b)=>getValor(b)-getValor(a)); break;
+    case 'valor-asc':    list.sort((a,b)=>getValor(a)-getValor(b)); break;
+    case 'evento-desc':  list.sort((a,b)=>getEventoData(b)-getEventoData(a)); break;
+    case 'evento-asc':   list.sort((a,b)=>getEventoData(a)-getEventoData(b)); break;
+    case 'cliente-asc':  list.sort((a,b)=>getClienteNome(a).localeCompare(getClienteNome(b))); break;
+    case 'cliente-desc': list.sort((a,b)=>getClienteNome(b).localeCompare(getClienteNome(a))); break;
+    case 'num-desc':     list.sort((a,b)=>getNum(b)-getNum(a)); break;
+    case 'num-asc':      list.sort((a,b)=>getNum(a)-getNum(b)); break;
+    default:              list.sort((a,b)=>getCriacao(b)-getCriacao(a));
+  }
+  return list;
 }
 
 function parseDateEmissao(s){
@@ -2005,7 +2056,8 @@ function resetFiltro(){
   document.getElementById('f-periodo').value='todos';
   document.getElementById('f-de-wrap').style.display='none';
   document.getElementById('f-ate-wrap').style.display='none';
-  const orcs=getOrcs();
+  document.getElementById('f-ordenar').value='criacao-desc';
+  const orcs=ordenarOrcamentos(getOrcs());
   renderLista(orcs);renderDash(orcs);
 }
 
