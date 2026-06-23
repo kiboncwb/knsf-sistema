@@ -579,6 +579,7 @@ table.cross-table tfoot td{font-weight:700;border-top:2px solid var(--g200);}
     <div class="actions">
       <button class="btn-r" onclick="salvar()">💾 Salvar Orçamento</button>
       <button class="btn-r gray" onclick="salvarPDF()">⬇ Salvar PDF</button>
+      <button class="btn-r gray" onclick="confirmarLimparOrcamento()" style="background:var(--g50);color:var(--g600);border:1.5px solid var(--g200)">🧹 Limpar Orçamento</button>
       <button class="btn-r gray" onclick="confirmarNovoOrcamento()" style="background:var(--g50);color:var(--g600);border:1.5px solid var(--g200)">✚ Novo Orçamento</button>
     </div>
 
@@ -1731,13 +1732,28 @@ function confirmarNovoOrcamento(){
   if(d.itens.length>0){
     if(!confirm('Iniciar novo orçamento? O orçamento atual será perdido se não tiver sido salvo.')) return;
   }
-  novoForm();
+  novoForm(); // avança o número — orçamento novo de fato
 }
 
-function novoForm(){
-  const n=getNextNum();
-  ss(K_NUM,n+1);
-  document.getElementById('num').value='#'+n;
+function confirmarLimparOrcamento(){
+  const d=coletar();
+  if(d.itens.length>0){
+    if(!confirm('Limpar os dados preenchidos? O número do orçamento #'+d.num+' será mantido.')) return;
+  }
+  novoForm(true); // mantém o número atual — só limpa o preenchimento
+}
+
+function novoForm(manterNum){
+  let numAtual;
+  if(manterNum){
+    // Mantém o número que já está na tela — não consome um novo número
+    const numTela=document.getElementById('num').value;
+    numAtual=parseInt(String(numTela).replace('#',''))||getNextNum();
+  } else {
+    numAtual=getNextNum();
+    ss(K_NUM,numAtual+1); // só avança o contador quando é de fato um novo orçamento
+  }
+  document.getElementById('num').value='#'+numAtual;
   const hoje=new Date();
   document.getElementById('demissao').value=hoje.toLocaleDateString('pt-BR');
   document.getElementById('cliente').value='';
