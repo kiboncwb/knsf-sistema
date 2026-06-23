@@ -287,6 +287,36 @@ table.ped-table tfoot td{font-weight:700;color:var(--red);border-top:2px solid v
 .imp-step-num.done{background:#d4edda;color:#155724;}
 .imp-step-num.active{background:var(--red);color:white;}
 
+/* ── ENDEREÇO AUTOCOMPLETE (Places API) ── */
+.addr-suggestions{
+  display:none;position:absolute;top:100%;left:0;right:0;z-index:50;
+  background:white;border:1.5px solid var(--g100);border-radius:8px;
+  box-shadow:0 6px 24px rgba(0,0,0,.12);margin-top:4px;
+  max-height:260px;overflow-y:auto;
+}
+.addr-suggestions.show{display:block;}
+.addr-suggestion-item{
+  padding:10px 14px;font-size:13px;color:var(--g800);cursor:pointer;
+  border-bottom:1px solid var(--g50);transition:background .12s;
+  display:flex;align-items:flex-start;gap:8px;
+}
+.addr-suggestion-item:last-child{border-bottom:none;}
+.addr-suggestion-item:hover,.addr-suggestion-item.active{background:var(--red-light);}
+.addr-suggestion-icon{color:var(--g400);font-size:13px;margin-top:1px;flex-shrink:0;}
+.addr-suggestion-main{font-weight:600;color:var(--g800);}
+.addr-suggestion-sec{font-size:11px;color:var(--g400);margin-top:1px;}
+.addr-loading{padding:10px 14px;font-size:12px;color:var(--g400);text-align:center;}
+
+/* ── FRETE SUGERIDO ── */
+.frete-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--red-light);color:var(--red);font-weight:700;
+  padding:4px 10px;border-radius:14px;font-size:12px;cursor:pointer;
+  border:1.5px solid transparent;transition:all .15s;
+}
+.frete-badge:hover{background:var(--red);color:white;}
+.frete-badge .km{font-weight:400;opacity:.85;}
+
 /* TOAST */
 .preview-orc-box{
   background:white;border-radius:var(--r);padding:20px;
@@ -434,6 +464,13 @@ table.cross-table td:nth-child(n+2){text-align:right;}
 table.cross-table tfoot td{font-weight:700;border-top:2px solid var(--g200);}
 
 </style>
+<script>
+  // Google Maps API — Places Autocomplete (New) + Routes API para cálculo de frete
+  window.GOOGLE_MAPS_API_KEY = 'AIzaSyCHLl9ozoEFrldtJJ0U5Q-n9FaHCv9zZ1o';
+</script>
+<script async defer
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCHLl9ozoEFrldtJJ0U5Q-n9FaHCv9zZ1o&libraries=places&loading=async&callback=onGoogleMapsLoaded">
+</script>
 </head>
 <body>
 <div id="print-area"></div>
@@ -492,7 +529,11 @@ table.cross-table tfoot td{font-weight:700;border-top:2px solid var(--g200);}
             <option>Chá Revelação</option><option>Outros</option>
           </select>
         </div>
-        <div class="field full"><label>Endereço do Evento</label><input type="text" id="end" placeholder="Endereço completo do local"></div>
+        <div class="field full" style="position:relative">
+          <label>Endereço do Evento</label>
+          <input type="text" id="end" placeholder="Digite o endereço ou nome do local..." autocomplete="off" oninput="onEnderecoInput()">
+          <div id="end-suggestions" class="addr-suggestions"></div>
+        </div>
         <div class="field"><label>Qtd. de Convidados</label><input type="number" id="convid" placeholder="—" min="0"></div>
       </div>
     </div>
@@ -512,7 +553,11 @@ table.cross-table tfoot td{font-weight:700;border-top:2px solid var(--g200);}
           <div class="tv" id="total-picoles" style="font-size:15px;font-weight:700;color:var(--g600)">0 un.</div>
         </div>
         <div class="trow"><label>Subtotal</label><div class="tv" id="tsub">R$ 0,00</div></div>
-        <div class="trow"><label>Frete (+)</label><input type="number" id="frete" placeholder="" min="0" step="5" oninput="calc()"></div>
+        <div class="trow" style="position:relative">
+          <label>Frete (+)</label>
+          <input type="number" id="frete" placeholder="" min="0" step="5" oninput="calc()">
+        </div>
+        <div id="frete-sugestao" style="display:none;font-size:12px;color:var(--g600);text-align:right;margin-top:-4px;margin-bottom:2px"></div>
         <div class="trow"><label>Desconto (−)</label><input type="number" id="desc" placeholder="" min="0" step="5" oninput="calc()"></div>
         <div class="trow total"><label>Valor Total</label><div class="tv" id="ttotal">R$ 0,00</div></div>
       </div>
@@ -1701,6 +1746,10 @@ function novoForm(){
   document.getElementById('tipo').value='';
   document.getElementById('end').value='';
   document.getElementById('convid').value='';
+  _enderecoSelecionado=null;
+  _ultimaDistanciaKm=null;
+  const freteBadge=document.getElementById('frete-sugestao');
+  if(freteBadge) freteBadge.style.display='none';
   document.getElementById('frete').value='';
   document.getElementById('desc').value='';
   document.getElementById('ilist').innerHTML='';
@@ -2092,6 +2141,10 @@ function preencherForm(o,isDup){
   document.getElementById('end').value=o.end||'';
   document.getElementById('convid').value=o.convid||'';
   document.getElementById('frete').value=o.frete||'';
+  _enderecoSelecionado=null;
+  _ultimaDistanciaKm=null;
+  const freteBadgeP=document.getElementById('frete-sugestao');
+  if(freteBadgeP) freteBadgeP.style.display='none';
   document.getElementById('desc').value=o.desc||'';
   // Restore pgto selections using new dynamic system
   const pgtos=getPgtos();
@@ -4199,6 +4252,196 @@ function confirmarVinculoForms(){
   toast(`✅ ${vinculados} eventos enriquecidos com dados do formulário!`);
   renderEventosDash();
   renderEventosTabela();
+}
+
+// ── GOOGLE MAPS — AUTOCOMPLETE DE ENDEREÇO + CÁLCULO DE FRETE ──
+const GMAPS_API_KEY = window.GOOGLE_MAPS_API_KEY || '';
+const ENDERECO_EMPRESA = 'Rua Desembargador Antônio de Paula, 997, Boqueirão, Curitiba, PR, 81730-380';
+const FRETE_POR_KM = 10;
+
+let _googleMapsReady = false;
+let _placesSessionToken = null;
+let _enderecoDebounce = null;
+let _enderecoSelecionado = null; // {description, placeId, lat, lng}
+let _ultimaDistanciaKm = null;
+
+function onGoogleMapsLoaded(){
+  _googleMapsReady = true;
+  console.log('Google Maps API carregada');
+}
+
+// ── AUTOCOMPLETE (Places API legado via AutocompleteService — funciona sem libraries=places novo) ──
+function onEnderecoInput(){
+  const input = document.getElementById('end');
+  const query = input.value.trim();
+  const box = document.getElementById('end-suggestions');
+
+  clearTimeout(_enderecoDebounce);
+
+  if(query.length < 3){
+    box.classList.remove('show');
+    box.innerHTML = '';
+    return;
+  }
+
+  _enderecoDebounce = setTimeout(() => buscarSugestoesEndereco(query), 350);
+}
+
+async function buscarSugestoesEndereco(query){
+  const box = document.getElementById('end-suggestions');
+  if(!GMAPS_API_KEY){
+    box.classList.remove('show');
+    return;
+  }
+
+  box.innerHTML = '<div class="addr-loading">⟳ Buscando endereços...</div>';
+  box.classList.add('show');
+
+  try{
+    // Places API (New) — Autocomplete
+    const resp = await fetch(`https://places.googleapis.com/v1/places:autocomplete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': GMAPS_API_KEY,
+      },
+      body: JSON.stringify({
+        input: query,
+        languageCode: 'pt-BR',
+        regionCode: 'BR',
+        locationBias: {
+          circle: {
+            center: { latitude: -25.4284, longitude: -49.2733 }, // Curitiba
+            radius: 50000.0
+          }
+        }
+      })
+    });
+
+    const data = await resp.json();
+
+    if(!data.suggestions || !data.suggestions.length){
+      box.innerHTML = '<div class="addr-loading">Nenhum endereço encontrado</div>';
+      return;
+    }
+
+    box.innerHTML = data.suggestions.map((s, i) => {
+      const pred = s.placePrediction;
+      if(!pred) return '';
+      const main = pred.structuredFormat?.mainText?.text || pred.text?.text || '';
+      const sec  = pred.structuredFormat?.secondaryText?.text || '';
+      return `<div class="addr-suggestion-item" onclick="selecionarEndereco('${pred.placeId}', this)">
+        <span class="addr-suggestion-icon">📍</span>
+        <div>
+          <div class="addr-suggestion-main">${main}</div>
+          ${sec ? `<div class="addr-suggestion-sec">${sec}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+
+  } catch(e){
+    console.warn('Erro ao buscar endereços:', e);
+    box.innerHTML = '<div class="addr-loading">⚠️ Erro ao buscar. Digite manualmente.</div>';
+  }
+}
+
+async function selecionarEndereco(placeId, el){
+  const box = document.getElementById('end-suggestions');
+  const fullText = el.querySelector('.addr-suggestion-main').textContent +
+    (el.querySelector('.addr-suggestion-sec') ? ', ' + el.querySelector('.addr-suggestion-sec').textContent : '');
+
+  document.getElementById('end').value = fullText;
+  box.classList.remove('show');
+  box.innerHTML = '';
+
+  // Get place details (lat/lng) for distance calculation
+  try{
+    const resp = await fetch(`https://places.googleapis.com/v1/places/${placeId}`, {
+      method: 'GET',
+      headers: {
+        'X-Goog-Api-Key': GMAPS_API_KEY,
+        'X-Goog-FieldMask': 'location,formattedAddress',
+      }
+    });
+    const data = await resp.json();
+    if(data.location){
+      _enderecoSelecionado = {
+        lat: data.location.latitude,
+        lng: data.location.longitude,
+        endereco: data.formattedAddress || fullText,
+      };
+      calcularFreteAutomatico();
+    }
+  } catch(e){
+    console.warn('Erro ao buscar detalhes do endereço:', e);
+  }
+}
+
+// Close suggestions when clicking outside
+document.addEventListener('click', (e) => {
+  const box = document.getElementById('end-suggestions');
+  const input = document.getElementById('end');
+  if(box && input && !box.contains(e.target) && e.target !== input){
+    box.classList.remove('show');
+  }
+});
+
+// ── CÁLCULO DE FRETE VIA ROUTES API ──
+async function calcularFreteAutomatico(){
+  if(!_enderecoSelecionado || !GMAPS_API_KEY) return;
+
+  const badge = document.getElementById('frete-sugestao');
+  badge.style.display = 'block';
+  badge.innerHTML = '<span style="color:var(--g400)">⟳ Calculando distância...</span>';
+
+  try{
+    const resp = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': GMAPS_API_KEY,
+        'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration',
+      },
+      body: JSON.stringify({
+        origin: { address: ENDERECO_EMPRESA },
+        destination: { location: { latLng: { latitude: _enderecoSelecionado.lat, longitude: _enderecoSelecionado.lng } } },
+        travelMode: 'DRIVE',
+        routingPreference: 'TRAFFIC_UNAWARE',
+        units: 'METRIC',
+      })
+    });
+
+    const data = await resp.json();
+
+    if(!data.routes || !data.routes.length){
+      badge.innerHTML = '<span style="color:var(--g400)">Não foi possível calcular a distância</span>';
+      return;
+    }
+
+    const distMeters = data.routes[0].distanceMeters;
+    const distKm = distMeters / 1000;
+    _ultimaDistanciaKm = distKm;
+
+    // Calcula frete: distância × R$10, arredondado para múltiplo de 5 mais próximo
+    const valorBruto = distKm * FRETE_POR_KM;
+    const freteSugerido = Math.round(valorBruto / 5) * 5;
+
+    badge.innerHTML = `
+      <span class="frete-badge" onclick="aplicarFreteSugerido(${freteSugerido})">
+        📍 ${distKm.toFixed(1)} <span class="km">km</span> → Usar R$ ${fmtM(freteSugerido)}
+      </span>`;
+
+  } catch(e){
+    console.warn('Erro ao calcular frete:', e);
+    badge.innerHTML = '<span style="color:var(--g400)">⚠️ Erro ao calcular. Preencha manualmente.</span>';
+  }
+}
+
+function aplicarFreteSugerido(valor){
+  document.getElementById('frete').value = valor;
+  calc();
+  toast(`✅ Frete de R$ ${fmtM(valor)} aplicado!`);
+  document.getElementById('frete-sugestao').style.display = 'none';
 }
 
 // ── INIT ──
